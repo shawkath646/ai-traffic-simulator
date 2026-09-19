@@ -59,6 +59,7 @@ export default function App() {
       <Loader />
       <Canvas
         shadows="percentage"
+        dpr={[1, 1.5]}
         camera={{
           position: [48, 42, 48],
           fov: 55,

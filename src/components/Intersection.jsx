@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import * as THREE from 'three';
 import {
   ROAD_WIDTH,
@@ -6,13 +6,11 @@ import {
   ROAD_LENGTH,
   MEDIAN_WIDTH,
   LANE_OFFSETS,
-  SIDEWALK_WIDTH,
-  SIDEWALK_HEIGHT,
   CROSSWALK_WIDTH,
   CROSSWALK_DISTANCE,
   VEHICLE_STOP_DISTANCE,
 } from '../utils/constants';
-import { getCachedPavementArrowTexture, getCachedTileTexture } from '../utils/textureHelpers';
+import { getCachedPavementArrowTexture } from '../utils/textureHelpers';
 
 // Median Divider with Steel Crash Barrier Fence
 function MedianDivider({ length, rotation = 0, position = [0, 0, 0] }) {
@@ -137,29 +135,13 @@ function StopSign({ position, rotationY = 0 }) {
   );
 }
 
-// Raised Concrete Sidewalk with Pavers
-function Sidewalk({ position, width, depth, texture }) {
-  return (
-    <group position={position}>
-      <mesh position={[0, SIDEWALK_HEIGHT / 2, 0]} receiveShadow>
-        <boxGeometry args={[width, SIDEWALK_HEIGHT, depth]} />
-        <meshStandardMaterial map={texture} roughness={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
 function Intersection() {
-  const armLen = ROAD_LENGTH - HALF_ROAD;
-  const armCenter = (HALF_ROAD + ROAD_LENGTH) / 2;
-  const medianCenter = (HALF_ROAD + 4 + ROAD_LENGTH - 2) / 2;
-  const medianLen = ROAD_LENGTH - 2 - (HALF_ROAD + 4);
-
-  const swWidth = SIDEWALK_WIDTH;
-  const swCenter = HALF_ROAD + swWidth / 2;
-
-  // Cached sidewalk texture matching CityChunk.jsx
-  const sidewalkTileTex = useMemo(() => getCachedTileTexture('sidewalk_paving', 16, 2), []);
+  // Median divider terminates cleanly 1.3m before the zebra crossing (crosswalk outer edge is at 16.7m)
+  // With cylinder cap radius of MEDIAN_WIDTH / 2 (0.8m), the cap tip stops safely at 18.0m from intersection center
+  const medianInnerBox = 18.8;
+  const medianOuterEdge = ROAD_LENGTH - 2;
+  const medianLen = medianOuterEdge - medianInnerBox;
+  const medianCenter = (medianInnerBox + medianOuterEdge) / 2;
 
   return (
     <group>
@@ -235,23 +217,6 @@ function Intersection() {
       <StopSign position={[-HALF_ROAD - 0.8, 0, VEHICLE_STOP_DISTANCE]} rotationY={Math.PI} />
       <StopSign position={[VEHICLE_STOP_DISTANCE, 0, HALF_ROAD + 0.8]} rotationY={-Math.PI / 2} />
       <StopSign position={[-VEHICLE_STOP_DISTANCE, 0, -HALF_ROAD - 0.8]} rotationY={Math.PI / 2} />
-
-      {/* Sidewalks along roads */}
-      <Sidewalk position={[swCenter, 0, -armCenter]} width={swWidth} depth={armLen} texture={sidewalkTileTex} />
-      <Sidewalk position={[-swCenter, 0, -armCenter]} width={swWidth} depth={armLen} texture={sidewalkTileTex} />
-      <Sidewalk position={[swCenter, 0, armCenter]} width={swWidth} depth={armLen} texture={sidewalkTileTex} />
-      <Sidewalk position={[-swCenter, 0, armCenter]} width={swWidth} depth={armLen} texture={sidewalkTileTex} />
-
-      <Sidewalk position={[armCenter, 0, -swCenter]} width={armLen} depth={swWidth} texture={sidewalkTileTex} />
-      <Sidewalk position={[armCenter, 0, swCenter]} width={armLen} depth={swWidth} texture={sidewalkTileTex} />
-      <Sidewalk position={[-armCenter, 0, -swCenter]} width={armLen} depth={swWidth} texture={sidewalkTileTex} />
-      <Sidewalk position={[-armCenter, 0, swCenter]} width={armLen} depth={swWidth} texture={sidewalkTileTex} />
-
-      {/* 4 Corner Sidewalk Plazas */}
-      <Sidewalk position={[swCenter, 0, -swCenter]} width={swWidth} depth={swWidth} texture={sidewalkTileTex} />
-      <Sidewalk position={[-swCenter, 0, -swCenter]} width={swWidth} depth={swWidth} texture={sidewalkTileTex} />
-      <Sidewalk position={[swCenter, 0, swCenter]} width={swWidth} depth={swWidth} texture={sidewalkTileTex} />
-      <Sidewalk position={[-swCenter, 0, swCenter]} width={swWidth} depth={swWidth} texture={sidewalkTileTex} />
     </group>
   );
 }

@@ -47,13 +47,13 @@ const VEHICLE_CONFIGS = {
     blinkerRear: { x: 0.68, y: 0.65, z: -1.76 },
   },
   truck: {
-    // Model rotated +PI/2 so white cab faces forward along +Z, cargo box faces rear along -Z
-    modelPos: [0, 0.62, 0],
-    modelRot: [0, Math.PI / 2, 0],
-    headlight: { x: 0.92, y: 0.95, z: 2.12, w: 0.24, h: 0.14 },
-    taillight: { x: 0.88, y: 0.95, z: -2.02, w: 0.24, h: 0.14 },
-    blinkerFront: { x: 1.05, y: 0.95, z: 2.06 },
-    blinkerRear: { x: 1.02, y: 0.95, z: -1.98 },
+    // Model raw orientation is rotated -72.77 deg (-1.27005 rad); rotate +1.27005 rad to face straight +Z
+    modelPos: [-0.035, 0.62, 0],
+    modelRot: [0, 1.27005, 0],
+    headlight: { x: 0.58, y: 0.78, z: 2.10, w: 0.20, h: 0.12 },
+    taillight: { x: 0.58, y: 0.92, z: -1.90, w: 0.20, h: 0.12 },
+    blinkerFront: { x: 0.68, y: 0.78, z: 2.05 },
+    blinkerRear: { x: 0.68, y: 0.92, z: -1.86 },
   },
   bus: {
     modelPos: [0, 0, 0],

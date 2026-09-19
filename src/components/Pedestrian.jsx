@@ -20,7 +20,7 @@ function Pedestrian({ data }) {
     return c;
   }, [scene]);
 
-  const { actions } = useAnimations(animations, groupRef);
+  const { actions } = useAnimations(animations, clone);
   const activeClipRef = useRef(null);
 
   // Find appropriate walk, run, and idle clips from available action names
@@ -50,7 +50,6 @@ function Pedestrian({ data }) {
       actionNames.find(
         (n) => n.toLowerCase().includes('idle') && !n.toLowerCase().includes('sword') && !n.toLowerCase().includes('gun')
       ) ||
-      actionNames[1] ||
       walkClip,
     [data.idleAnim, actionNames, walkClip]
   );
@@ -64,8 +63,9 @@ function Pedestrian({ data }) {
     };
   }, [actions]);
 
-  useFrame(() => {
+  useFrame((_, rawDelta) => {
     if (!groupRef.current) return;
+    const delta = Math.min(rawDelta || 0.016, 0.1);
     groupRef.current.position.x = data.x;
     groupRef.current.position.z = data.z;
 
@@ -81,7 +81,8 @@ function Pedestrian({ data }) {
     let diff = (targetYaw - currentYaw) % (Math.PI * 2);
     if (diff < -Math.PI) diff += Math.PI * 2;
     if (diff > Math.PI) diff -= Math.PI * 2;
-    groupRef.current.rotation.y = currentYaw + diff * 0.25;
+    const turnSmoothing = 1 - Math.pow(0.001, delta);
+    groupRef.current.rotation.y = currentYaw + diff * turnSmoothing;
 
     // Synchronize animation clips (Idle, Walk, Reactive Jogging Run) directly every frame
     if (actions) {

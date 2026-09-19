@@ -2,22 +2,7 @@ import React, { useMemo } from 'react';
 import { useGLTF, Clone } from '@react-three/drei';
 import * as THREE from 'three';
 
-const BUILDING_CONFIGS = {
-  quaternius: { model: '/models/building_quaternius.glb', defaultScale: 3.6 },
-  kenney_g: { model: '/models/building_kenney_g.glb', defaultScale: 7.2 },
-  kenney_a: { model: '/models/building_kenney_a.glb', defaultScale: 7.5 },
-  skyscraper: { model: '/models/skyscraper.glb', defaultScale: 12.5 },
-  apartment: { model: '/models/apartment_building.glb', defaultScale: 1.05 },
-  cinema: { model: '/models/cinema.glb', defaultScale: 0.95 },
-  hospital: { model: '/models/hospital.glb', defaultScale: 0.052 },
-  church: { model: '/models/church.glb', defaultScale: 1.1 },
-  kay_office_1: { model: '/models/building_kay_1.glb', defaultScale: 5.5 },
-  kay_office_2: { model: '/models/building_kay_2.glb', defaultScale: 5.8 },
-  business: { model: '/models/business_building.glb', defaultScale: 9.0 },
-  skyscraper_kenney: { model: '/models/skyscraper_kenney.glb', defaultScale: 7.5 },
-  house_modern: { model: '/models/house_modern.glb', defaultScale: 1.0 },
-  house_villa: { model: '/models/house_villa.glb', defaultScale: 6.0 },
-};
+import { BUILDING_CONFIGS } from '../utils/buildingConfigs';
 
 // Global cache of centered model scenes (computed once per model type)
 // This normalizes any raw model offsets (such as house_modern's -109m internal offset)
@@ -48,6 +33,9 @@ function Building({
   type = 'quaternius',
   scaleMultiplier = 1.0,
 }) {
+  if (!BUILDING_CONFIGS[type] && process.env.NODE_ENV !== 'production') {
+    console.warn(`Building: unknown type "${type}", falling back to "quaternius"`);
+  }
   const config = BUILDING_CONFIGS[type] || BUILDING_CONFIGS.quaternius;
   const { scene } = useGLTF(config.model);
 

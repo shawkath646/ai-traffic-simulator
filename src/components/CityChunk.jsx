@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
-import Building from './Building';
+import InstancedBuildings from './InstancedBuildings';
 import {
   Tree,
   BusStop,
@@ -346,7 +346,31 @@ const SEG_STARTS = [-256, -117, 18, 153];
 const TOTAL_DASHES = DASHES_PER_SEG * 4 * 4 * 6; // 2112
 
 function CityChunk() {
-  const { scene: pondScene } = useGLTF('/models/pond.glb');
+  const { scene: rawPondScene } = useGLTF('/models/pond.glb');
+
+  // Prepare pond scene with realistic crystal-clear water and shadow flags
+  const pondScene = useMemo(() => {
+    const cloned = rawPondScene.clone(true);
+    cloned.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (child.material) {
+          const matName = child.material.name || '';
+          if (matName === '039BE5' || matName === '00BCD4') {
+            child.material = new THREE.MeshStandardMaterial({
+              color: matName === '039BE5' ? new THREE.Color('#0284c7') : new THREE.Color('#38bdf8'),
+              roughness: 0.12,
+              metalness: 0.15,
+              transparent: true,
+              opacity: 0.90,
+            });
+          }
+        }
+      }
+    });
+    return cloned;
+  }, [rawPondScene]);
 
   // Instanced dashed lane lines mesh
   const dashedMesh = useMemo(() => {
@@ -599,6 +623,43 @@ function CityChunk() {
   const sidewalkTileTex = useMemo(() => getCachedTileTexture('sidewalk_paving', 28, 2), []);
   // World-space scale-matched seamless grass textures
   const parkGrassTex = useMemo(() => getCachedTileTexture('natural_turf', 4.3, 4.3), []);
+
+  // Central Park lawn geometry with exact cutout opening for the sunken pond (X: -88 to -48, Z: 35 to 75)
+  const parkTurfGeometry = useMemo(() => {
+    const half = 50.8;
+    const shape = new THREE.Shape();
+    shape.moveTo(-half, -half);
+    shape.lineTo(half, -half);
+    shape.lineTo(half, half);
+    shape.lineTo(-half, half);
+    shape.closePath();
+
+    // Opening for pond in Central Park (center [-67.5, 67.5], pond at [-68, 55], half = 20)
+    // local X = -68 - (-67.5) = -0.5, local Y = -(55 - 67.5) = 12.5
+    const cx = -0.5;
+    const cy = 12.5;
+    const ph = 20;
+    const hole = new THREE.Path();
+    hole.moveTo(cx - ph, cy - ph);
+    hole.lineTo(cx + ph, cy - ph);
+    hole.lineTo(cx + ph, cy + ph);
+    hole.lineTo(cx - ph, cy + ph);
+    hole.closePath();
+    shape.holes.push(hole);
+
+    const geo = new THREE.ShapeGeometry(shape);
+    const pos = geo.attributes.position;
+    const uvs = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      uvs[i * 2] = ((x + half) / 101.6) * 4.3;
+      uvs[i * 2 + 1] = ((y + half) / 101.6) * 4.3;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    return geo;
+  }, []);
+
   const houseGrassTex = useMemo(() => getCachedTileTexture('natural_turf', 4.4, 2.2), []);
   const outerHouseGrassTex = useMemo(() => getCachedTileTexture('natural_turf', 4.4, 4.4), []);
 
@@ -608,36 +669,95 @@ function CityChunk() {
       {/* 1. SEAMLESS CITY BLOCK PODIUMS (100% ZERO-GAP TO ROAD ASPHALT)     */}
       {/* =================================================================== */}
 
-      {/* CORE BLOCK NE: DOWNTOWN FINANCIAL DISTRICT (FLUSH AT X=12.2..122.8, Z=-122.8..-12.2) */}
-      <mesh position={[67.5, 0.15, -67.5]} receiveShadow>
-        <boxGeometry args={[110.6, 0.3, 110.6]} />
+      {/* =================================================================== */}
+      {/* 1. SEAMLESS ARCHITECTURAL SIDEWALKS (4.5m WIDE, ZERO-GAP TO ROADS) */}
+      {/* =================================================================== */}
+
+      {/* Primary Central Avenue Perimeter Sidewalks (Y = 0.15m, height 0.3m, sidewalkTileTex) */}
+      {/* North Avenue Sidewalks (Z: -122.8 to -12.2) */}
+      <mesh position={[-14.45, 0.15, -67.5]} receiveShadow>
+        <boxGeometry args={[4.5, 0.3, 110.6]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+      <mesh position={[14.45, 0.15, -67.5]} receiveShadow>
+        <boxGeometry args={[4.5, 0.3, 110.6]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+
+      {/* South Avenue Sidewalks (Z: 12.2 to 122.8) */}
+      <mesh position={[-14.45, 0.15, 69.75]} receiveShadow>
+        <boxGeometry args={[4.5, 0.3, 106.1]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+      <mesh position={[14.45, 0.15, 67.5]} receiveShadow>
+        <boxGeometry args={[4.5, 0.3, 110.6]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+
+      {/* East Avenue Sidewalks (X: 16.7 to 122.8) */}
+      <mesh position={[69.75, 0.15, -14.45]} receiveShadow>
+        <boxGeometry args={[106.1, 0.3, 4.5]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+      <mesh position={[69.75, 0.15, 14.45]} receiveShadow>
+        <boxGeometry args={[106.1, 0.3, 4.5]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+
+      {/* West Avenue Sidewalks (X: -122.8 to -16.7 / -12.2) */}
+      <mesh position={[-69.75, 0.15, -14.45]} receiveShadow>
+        <boxGeometry args={[106.1, 0.3, 4.5]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+      <mesh position={[-67.5, 0.15, 14.45]} receiveShadow>
+        <boxGeometry args={[110.6, 0.3, 4.5]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+
+      {/* Central Park Outer Perimeter Sidewalks along Secondary Avenues */}
+      <mesh position={[-67.5, 0.15, 120.55]} receiveShadow>
+        <boxGeometry args={[101.6, 0.3, 4.5]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+      <mesh position={[-120.55, 0.15, 67.5]} receiveShadow>
+        <boxGeometry args={[4.5, 0.3, 101.6]} />
+        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
+      </mesh>
+
+      {/* =================================================================== */}
+      {/* 2. INTERIOR BLOCK PODIUMS (SET BACK 4.5m BEHIND PERIMETER SIDEWALKS) */}
+      {/* =================================================================== */}
+
+      {/* CORE BLOCK NE: DOWNTOWN FINANCIAL DISTRICT INTERIOR (X=16.7..122.8, Z=-122.8..-16.7) */}
+      <mesh position={[69.75, 0.15, -69.75]} receiveShadow>
+        <boxGeometry args={[106.1, 0.3, 106.1]} />
         <meshStandardMaterial map={downtownTileTex} roughness={0.65} metalness={0.1} />
       </mesh>
       {/* Financial Center Corporate Plaza Granite Inset */}
-      <mesh position={[67.5, 0.305, -67.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[69.75, 0.305, -69.75]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[54, 54]} />
         <meshStandardMaterial map={plazaTileTex} roughness={0.55} />
       </mesh>
-      {/* 3D Modular Floor Tiles (from new-assets) flanking Corporate Plaza entrance */}
+      {/* 3D Modular Floor Tiles flanking Corporate Plaza entrance */}
       {[-8, -4, 0, 4, 8].map((ox) => (
-        <ModularFloorTile key={`ft-ne-${ox}`} position={[67.5 + ox, 0.31, -54]} scale={[1.2, 0.5, 1.2]} />
+        <ModularFloorTile key={`ft-ne-${ox}`} position={[69.75 + ox, 0.31, -54]} scale={[1.2, 0.5, 1.2]} />
       ))}
 
-      {/* CORE BLOCK NW: CIVIC & REGIONAL MEDICAL — CIVIC CONCRETE PODIUM (FLUSH AT X=-122.8..-12.2, Z=-122.8..-12.2) */}
-      <mesh position={[-67.5, 0.15, -67.5]} receiveShadow>
-        <boxGeometry args={[110.6, 0.3, 110.6]} />
+      {/* CORE BLOCK NW: CIVIC & REGIONAL MEDICAL INTERIOR (X=-122.8..-16.7, Z=-122.8..-16.7) */}
+      <mesh position={[-69.75, 0.15, -69.75]} receiveShadow>
+        <boxGeometry args={[106.1, 0.3, 106.1]} />
         <meshStandardMaterial map={civicTileTex} roughness={0.7} metalness={0.05} />
       </mesh>
 
-      {/* CORE BLOCK SE: ARTS & RESIDENTIAL — ZERO-GAP SPLIT PODIUM */}
-      {/* Northern Half (Cinema & Fountain Plaza): Tiled Limestone (X=12.2..122.8, Z=12.2..67.5) */}
-      <mesh position={[67.5, 0.15, 39.85]} receiveShadow>
-        <boxGeometry args={[110.6, 0.3, 55.3]} />
+      {/* CORE BLOCK SE: ARTS & RESIDENTIAL INTERIOR (X=16.7..122.8, Z=16.7..122.8) */}
+      {/* Northern Half (Cinema & Fountain Plaza): Tiled Limestone (Z=16.7..67.5) */}
+      <mesh position={[69.75, 0.15, 42.1]} receiveShadow>
+        <boxGeometry args={[106.1, 0.3, 50.8]} />
         <meshStandardMaterial map={plazaTileTex} roughness={0.6} />
       </mesh>
-      {/* Southern Half (Smaller House Area): Natural Lawns (X=12.2..122.8, Z=67.5..122.8) */}
-      <mesh position={[67.5, 0.015, 95.15]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[110.6, 55.3]} />
+      {/* Southern Half (House Area): Natural Lawns (Z=67.5..122.8) */}
+      <mesh position={[69.75, 0.015, 95.15]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[106.1, 55.3]} />
         <meshStandardMaterial map={houseGrassTex} roughness={0.92} color="#ffffff" />
       </mesh>
       {/* House Front Yard Concrete Walkway slabs */}
@@ -648,39 +768,16 @@ function CityChunk() {
         </mesh>
       ))}
 
-      {/* CORE BLOCK SW: CENTRAL PARK — GROUND LEVEL (Y = 0.015m) WITH FLUSH CURB SIDEWALKS */}
-      {/* 4 Perimeter Sidewalks connecting seamlessly to roadbeds with zero gap */}
-      {/* North Sidewalk (Z: 12.2 to 16.7) */}
-      <mesh position={[-67.5, 0.15, 14.45]} receiveShadow>
-        <boxGeometry args={[110.6, 0.3, 4.5]} />
-        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
-      </mesh>
-      {/* South Sidewalk (Z: 118.3 to 122.8) */}
-      <mesh position={[-67.5, 0.15, 120.55]} receiveShadow>
-        <boxGeometry args={[110.6, 0.3, 4.5]} />
-        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
-      </mesh>
-      {/* East Sidewalk (X: -16.7 to -12.2) */}
-      <mesh position={[-14.45, 0.15, 67.5]} receiveShadow>
-        <boxGeometry args={[4.5, 0.3, 110.6]} />
-        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
-      </mesh>
-      {/* West Sidewalk (X: -122.8 to -118.3) */}
-      <mesh position={[-120.55, 0.15, 67.5]} receiveShadow>
-        <boxGeometry args={[4.5, 0.3, 110.6]} />
-        <meshStandardMaterial map={sidewalkTileTex} roughness={0.65} />
-      </mesh>
-      {/* Central Park Ground: Natural Turf at Ground Level (Y = 0.015m, 101.6m x 101.6m) */}
-      <mesh position={[-67.5, 0.015, 67.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[101.6, 101.6]} />
+      {/* CORE BLOCK SW: CENTRAL PARK GROUND LEVEL TURF (with opening for sunken pond) */}
+      <mesh position={[-67.5, 0.015, 67.5]} rotation={[-Math.PI / 2, 0, 0]} geometry={parkTurfGeometry} receiveShadow>
         <meshStandardMaterial map={parkGrassTex} roughness={0.95} color="#ffffff" />
       </mesh>
       {/* Stone steps descending from perimeter sidewalk into the park */}
       <PlazaStairs position={[-16.7, 0, 67.5]} rotation={[0, -Math.PI / 2, 0]} scale={1.2} />
       <PlazaStairs position={[-67.5, 0, 16.7]} rotation={[0, Math.PI, 0]} scale={1.2} />
-      {/* Modular Wood Promenade Deck overlooking the pond (from new-assets) */}
-      <ModularWoodFloor position={[-68, 0.03, 70]} scale={[1.2, 0.4, 1.2]} />
-      <ModularWoodFloor position={[-64, 0.03, 70]} scale={[1.2, 0.4, 1.2]} />
+      {/* Modular Wood Promenade Deck overlooking the pond south shoreline */}
+      <ModularWoodFloor position={[-68, 0.03, 75.5]} scale={[1.2, 0.4, 1.2]} />
+      <ModularWoodFloor position={[-64, 0.03, 75.5]} scale={[1.2, 0.4, 1.2]} />
 
       {/* =================================================================== */}
       {/* 2. OUTER BLOCK PODIUMS (FLUSH WITH 24.4m PRIMARY AVENUES AT 147.2m) */}
@@ -988,7 +1085,7 @@ function CityChunk() {
         <React.Fragment key={`ave-tree-${i}`}>
           <SidewalkTreeGrate position={tree.pos} />
           <Tree
-            position={[tree.pos[0], 0.16, tree.pos[2]]}
+            position={[tree.pos[0], 0.30, tree.pos[2]]}
             variant={tree.variant}
             scale={tree.scale}
             rotationY={tree.rotY}
@@ -1081,36 +1178,37 @@ function CityChunk() {
       <Bench position={[-36, 0.31, -34]} rotation={-Math.PI / 2} />
       <Dumpster position={[-90, 0.3, -70]} rotation={[0, -Math.PI / 4, 0]} />
 
-      {/* --- SW CENTRAL PARK: GROUND LEVEL (Y = 0.02m) --- */}
-      <group position={[-68, 0.02, 55]} rotation={[0, 0.4, 0]}>
-        <Clone object={pondScene} scale={[0.18, 0.18, 0.18]} receiveShadow castShadow />
+      {/* --- SW CENTRAL PARK: NATURAL SUNKEN POND BASIN (FLUSH WITH TURF) --- */}
+      {/* Top perimeter grass is at Y = 12.66 in model units; at scale = 0.20 and Y = -2.517m, perimeter grass sits flush with turf at Y = 0.015m */}
+      <group position={[-68, -2.517, 55]} rotation={[0, 0, 0]}>
+        <primitive object={pondScene} scale={[0.20, 0.20, 0.20]} />
       </group>
-      <ParkRock position={[-68, 0.02, 40]} variant={1} scale={0.7} rotation={[0, 0.8, 0]} />
-      <ParkRock position={[-52, 0.02, 60]} variant={2} scale={0.8} rotation={[0, 2.1, 0]} />
-      <ParkRock position={[-84, 0.02, 55]} variant={3} scale={0.65} rotation={[0, -1.2, 0]} />
-      <ParkRock position={[-65, 0.02, 72]} variant={4} scale={0.75} rotation={[0, 1.5, 0]} />
-      <ParkRock position={[-54, 0.02, 70]} variant={5} scale={0.85} rotation={[0, 3.0, 0]} />
+      <ParkRock position={[-68, 0.02, 38]} variant={1} scale={0.7} rotation={[0, 0.8, 0]} />
+      <ParkRock position={[-47, 0.02, 58]} variant={2} scale={0.8} rotation={[0, 2.1, 0]} />
+      <ParkRock position={[-89, 0.02, 55]} variant={3} scale={0.65} rotation={[0, -1.2, 0]} />
+      <ParkRock position={[-65, 0.02, 76]} variant={4} scale={0.75} rotation={[0, 1.5, 0]} />
+      <ParkRock position={[-54, 0.02, 75]} variant={5} scale={0.85} rotation={[0, 3.0, 0]} />
       {/* Mature Park Trees grounded on turf */}
       <Tree position={[-42, 0.02, 45]} variant={1} scale={1.25} rotationY={0.5} />
       <Tree position={[-45, 0.02, 70]} variant={2} scale={1.3} rotationY={1.8} />
-      <Tree position={[-88, 0.02, 40]} variant={4} scale={1.15} rotationY={2.7} />
-      <Tree position={[-88, 0.02, 75]} variant={5} scale={1.25} rotationY={1.2} />
+      <Tree position={[-90, 0.02, 40]} variant={4} scale={1.15} rotationY={2.7} />
+      <Tree position={[-90, 0.02, 75]} variant={5} scale={1.25} rotationY={1.2} />
       <Tree position={[-60, 0.02, 85]} variant={3} scale={1.1} rotationY={0.9} />
-      <Tree position={[-75, 0.02, 35]} variant={2} scale={1.05} rotationY={2.2} />
+      <Tree position={[-75, 0.02, 33]} variant={2} scale={1.05} rotationY={2.2} />
       {/* Promenade Benches grounded on turf */}
-      <Bench position={[-42, 0.02, 56]} rotation={-Math.PI / 2} />
-      <Bench position={[-68, 0.02, 34]} rotation={0} />
-      <Bench position={[-68, 0.02, 76]} rotation={Math.PI} />
+      <Bench position={[-44, 0.02, 56]} rotation={-Math.PI / 2} />
+      <Bench position={[-68, 0.02, 33]} rotation={0} />
+      <Bench position={[-68, 0.02, 77]} rotation={Math.PI} />
       <TrashCan position={[-38, 0.02, 38]} rotation={[0, 0, 0]} />
       <TrashCan position={[-74, 0.02, 80]} rotation={[0, Math.PI, 0]} />
 
-      {/* 3D Natural Physical Grass Clumps in Central Park */}
-      <GrassPatch position={[-60, 0.02, 50]} scale={1.2} rotationY={0.5} />
-      <GrassPatch position={[-75, 0.02, 60]} scale={1.1} rotationY={1.8} />
-      <GrassPatch position={[-68, 0.02, 66]} scale={1.3} rotationY={2.4} />
-      <GrassPatch position={[-80, 0.02, 44]} scale={1.0} rotationY={0.9} />
-      <GrassPatch position={[-48, 0.02, 65]} scale={1.15} rotationY={1.4} />
-      <GrassPatch position={[-56, 0.02, 78]} scale={1.2} rotationY={3.1} />
+      {/* 3D Natural Physical Grass Clumps in Central Park (on park turf around the pond) */}
+      <GrassPatch position={[-60, 0.02, 32]} scale={1.2} rotationY={0.5} />
+      <GrassPatch position={[-92, 0.02, 60]} scale={1.1} rotationY={1.8} />
+      <GrassPatch position={[-44, 0.02, 66]} scale={1.3} rotationY={2.4} />
+      <GrassPatch position={[-80, 0.02, 32]} scale={1.0} rotationY={0.9} />
+      <GrassPatch position={[-44, 0.02, 45]} scale={1.15} rotationY={1.4} />
+      <GrassPatch position={[-56, 0.02, 82]} scale={1.2} rotationY={3.1} />
       <GrassMix position={[-65, 0.02, 42]} scale={0.9} rotationY={1.1} />
       <GrassMix position={[-72, 0.02, 70]} scale={1.0} rotationY={2.0} />
       <GrassMix position={[-44, 0.02, 48]} scale={0.95} rotationY={0.3} />
@@ -1172,17 +1270,9 @@ function CityChunk() {
       <Tree position={[172, 0.2, 198]} variant={5} scale={0.9} rotationY={2.1} />
 
       {/* =================================================================== */}
-      {/* 6. MASTER CITY BUILDINGS (190 VALIDATED NON-COLLIDING BUILDINGS)   */}
+      {/* 6. MASTER CITY BUILDINGS (270 VALIDATED NON-COLLIDING INSTANCED)   */}
       {/* =================================================================== */}
-      {MASTER_BUILDINGS.map((b, i) => (
-        <Building
-          key={`bldg-${i}`}
-          position={b.pos}
-          type={b.type}
-          rotation={b.rot}
-          scaleMultiplier={b.scale}
-        />
-      ))}
+      <InstancedBuildings buildings={MASTER_BUILDINGS} />
     </group>
   );
 }

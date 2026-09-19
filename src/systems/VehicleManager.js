@@ -679,16 +679,20 @@ export class VehicleManager {
       let distToStop = 999;
       switch (vehicle.direction) {
         case 'north':
-          distToStop = targetStopCenter - (-vehicle.z);
+          // Approaching from -z towards +z; stop target is at -targetStopCenter
+          distToStop = (-targetStopCenter) - vehicle.z;
           break;
         case 'south':
-          distToStop = targetStopCenter - vehicle.z;
+          // Approaching from +z towards -z; stop target is at +targetStopCenter
+          distToStop = vehicle.z - targetStopCenter;
           break;
         case 'east':
-          distToStop = targetStopCenter - vehicle.x;
+          // Approaching from +x towards -x; stop target is at +targetStopCenter
+          distToStop = vehicle.x - targetStopCenter;
           break;
         case 'west':
-          distToStop = targetStopCenter - (-vehicle.x);
+          // Approaching from -x towards +x; stop target is at -targetStopCenter
+          distToStop = (-targetStopCenter) - vehicle.x;
           break;
       }
 
@@ -758,6 +762,7 @@ export class VehicleManager {
       // Obstacle B: Preceding Vehicle Ahead (Universal Forward Detection across all states)
       let closestAheadDist = 999;
       let aheadCandidate = null;
+      const halfW = (vehicle.width || 1.8) / 2;
 
       for (const other of vehicles) {
         if (other.id === vehicle.id) continue;
@@ -765,9 +770,11 @@ export class VehicleManager {
         const dz = other.z - vehicle.z;
         const forwardProj = dx * headingX + dz * headingZ;
         const lateralProj = Math.abs(-dx * headingZ + dz * headingX);
+        const otherHalfW = (other.width || 1.8) / 2;
+        const lateralThreshold = halfW + otherHalfW + 0.35;
 
         // Check if other vehicle is directly ahead along our path
-        if (forwardProj > 0.4 && forwardProj < 28.0 && lateralProj < 2.0) {
+        if (forwardProj > 0.3 && forwardProj < 32.0 && lateralProj < lateralThreshold) {
           if (forwardProj < closestAheadDist) {
             closestAheadDist = forwardProj;
             aheadCandidate = other;
@@ -775,11 +782,73 @@ export class VehicleManager {
         }
       }
 
+      // Hard non-penetration speed limit (Guarantees visible bumper-to-bumper gap)
+      let maxAllowedSpeed = v0;
+      const MIN_SAFETY_GAP = 1.4; // Strict 1.4m minimum physical asphalt gap between bumpers
+
       if (aheadCandidate) {
-        const physicalGap = Math.max(0.1, closestAheadDist - halfLen - ((aheadCandidate.length || 4.2) / 2));
+        const otherHalfLen = (aheadCandidate.length || 4.2) / 2;
+        const physicalGap = closestAheadDist - halfLen - otherHalfLen;
         const deltaV = vCurr - (aheadCandidate.currentSpeed || 0);
-        const aLead = computeIDMInteraction(vCurr, deltaV, physicalGap, profile.aMax, profile.bComf, profile.jamDist, profile.headwayT);
+        const aLead = computeIDMInteraction(
+          vCurr,
+          deltaV,
+          Math.max(0.1, physicalGap),
+          profile.aMax,
+          profile.bComf,
+          Math.max(2.4, profile.jamDist),
+          profile.headwayT
+        );
         if (aLead < minInteractionAccel) minInteractionAccel = aLead;
+
+        // Absolute Non-Penetration Speed Clamp
+        const safeGapRemaining = physicalGap - MIN_SAFETY_GAP;
+        if (safeGapRemaining <= 0) {
+          maxAllowedSpeed = 0;
+        } else {
+          const maxGapSpeed = safeGapRemaining / dt;
+          if (maxGapSpeed < maxAllowedSpeed) maxAllowedSpeed = maxGapSpeed;
+        }
+      }
+
+      // Multi-circle boundary check for turning & lateral conflict avoidance (prevents corner/side clipping)
+      const myCircles = getVehicleCircles(vehicle);
+      for (const other of vehicles) {
+        if (other.id === vehicle.id) continue;
+        const cDist = Math.hypot(other.x - vehicle.x, other.z - vehicle.z);
+        if (cDist > 12.0) continue;
+
+        const dx = other.x - vehicle.x;
+        const dz = other.z - vehicle.z;
+        const forwardProj = dx * headingX + dz * headingZ;
+        const lateralProj = Math.abs(-dx * headingZ + dz * headingX);
+
+        // Vehicles traveling in adjacent parallel lanes on the approach road are already queued safely.
+        // Ignore them if laterally separated by more than 2.0m so they don't trigger false braking.
+        if (!vehicle.enteredIntersection && !other.enteredIntersection && vehicle.direction === other.direction) {
+          if (lateralProj > 2.0) {
+            continue;
+          }
+        }
+
+        const otherCircles = getVehicleCircles(other);
+        let minCircleGap = Infinity;
+        for (const c1 of myCircles) {
+          for (const c2 of otherCircles) {
+            const d = Math.hypot(c2.x - c1.x, c2.z - c1.z);
+            const gap = d - c1.r - c2.r;
+            if (gap < minCircleGap) minCircleGap = gap;
+          }
+        }
+
+        const CIRCLE_SAFE_MARGIN = 0.50; // 0.50m safety margin around circle boundaries
+        if (minCircleGap < CIRCLE_SAFE_MARGIN && forwardProj > -0.2) {
+          // Other vehicle is ahead or encroaching our turning sweep
+          const safeSpeed = Math.max(0, (minCircleGap - CIRCLE_SAFE_MARGIN) / dt);
+          if (safeSpeed < maxAllowedSpeed) maxAllowedSpeed = safeSpeed;
+          const aCircle = -profile.bComf * 1.8;
+          if (aCircle < minInteractionAccel) minInteractionAccel = aCircle;
+        }
       }
 
       // Obstacle C: Crossing Pedestrians
@@ -816,13 +885,15 @@ export class VehicleManager {
         }
       }
 
-      // 4. Net IDM Acceleration Integration
+      // 4. Net IDM Acceleration Integration with Non-Penetration Gap Enforcement
       const targetAccel = Math.max(-profile.bComf * 2.5, Math.min(profile.aMax, freeAccel + minInteractionAccel));
       vehicle.acceleration = targetAccel;
-      vehicle.currentSpeed = Math.max(0, vCurr + targetAccel * dt);
+      let newSpeed = Math.max(0, vCurr + targetAccel * dt);
+      newSpeed = Math.min(newSpeed, maxAllowedSpeed);
+      vehicle.currentSpeed = newSpeed;
 
       // Stop detection & wait timer
-      if (vehicle.currentSpeed < 0.05 && minInteractionAccel < -0.5) {
+      if (vehicle.currentSpeed < 0.05 && (minInteractionAccel < -0.5 || maxAllowedSpeed <= 0.05)) {
         vehicle.currentSpeed = 0;
         vehicle.waiting = true;
         vehicle.waitTime += dt;

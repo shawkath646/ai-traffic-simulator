@@ -10,7 +10,7 @@ export const SIDEWALK_WIDTH = 4.5;
 export const SIDEWALK_HEIGHT = 0.3;
 export const CROSSWALK_WIDTH = 4.5;
 export const CROSSWALK_DISTANCE = HALF_ROAD + 2.25; // 14.45m from center
-export const VEHICLE_STOP_DISTANCE = HALF_ROAD + 5.0; // 17.2m from center (safely before crosswalk)
+export const VEHICLE_STOP_DISTANCE = HALF_ROAD + 7.3; // 19.5m from center (generous buffer before crosswalk)
 
 // Lane lateral offsets from center median for incoming traffic:
 // Lane 0: Left Turn Only (closest to median)

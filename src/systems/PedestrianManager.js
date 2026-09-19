@@ -205,23 +205,36 @@ export class PedestrianManager {
       const signal = pedSignals[ped.crosswalkDirection] || 'stop';
       ped.walkCycle += dt * 8;
 
-      // 1. Social force: avoid head-on collisions with other pedestrians on same crosswalk
-      let separationZ = 0;
-      let separationX = 0;
-      for (const other of pedsByDirection[ped.crosswalkDirection]) {
-        if (other.id === ped.id) continue;
-        const d = Math.hypot(other.x - ped.x, other.z - ped.z);
-        if (d < 1.4 && d > 0.01) {
-          // Gently push sideways away from oncoming neighbor
-          if (ped.movesAlongX) {
-            separationZ += (ped.z >= other.z ? 0.4 : -0.4) * dt;
-          } else {
-            separationX += (ped.x >= other.x ? 0.4 : -0.4) * dt;
+      // 1. Social force: avoid head-on collisions between actively moving pedestrians crossing in opposite directions
+      // Waiting pedestrians remain completely stationary at the curb without sliding sideways
+      if (ped.state === 'crossing') {
+        let separationZ = 0;
+        let separationX = 0;
+        for (const other of pedsByDirection[ped.crosswalkDirection]) {
+          if (other.id === ped.id || other.state !== 'crossing') continue;
+          // Only avoid oncoming pedestrians crossing in opposite direction
+          if (ped.normalSide === other.normalSide) continue;
+
+          const d = Math.hypot(other.x - ped.x, other.z - ped.z);
+          if (d < 1.4 && d > 0.01) {
+            // Gently steer sideways away from oncoming pedestrian
+            if (ped.movesAlongX) {
+              separationZ += (ped.z >= other.z ? 0.35 : -0.35) * dt;
+            } else {
+              separationX += (ped.x >= other.x ? 0.35 : -0.35) * dt;
+            }
           }
         }
+        ped.x += separationX;
+        ped.z += separationZ;
+
+        // Keep pedestrian strictly within the crosswalk corridor (max 1.8m from curb center)
+        if (ped.movesAlongX) {
+          ped.z = Math.max(ped.curbZ - 1.8, Math.min(ped.curbZ + 1.8, ped.z));
+        } else {
+          ped.x = Math.max(ped.curbX - 1.8, Math.min(ped.curbX + 1.8, ped.x));
+        }
       }
-      ped.x += separationX;
-      ped.z += separationZ;
 
       // 2. Proximity check to approaching vehicles: trigger reactive jogging / alert speed
       let vehicleDanger = false;
@@ -346,7 +359,13 @@ export class PedestrianManager {
     if (pedestrians.length !== prevPedCount || toRemove.length > 0) {
       store.getState().setPedestrians(pedestrians);
     }
-    store.getState().setCrossingPedestrians(crossingPeds);
+    const prevCrossing = store.getState().crossingPedestrians;
+    if (
+      prevCrossing.length !== crossingPeds.length ||
+      crossingPeds.some((p, idx) => p.id !== prevCrossing[idx]?.id)
+    ) {
+      store.getState().setCrossingPedestrians(crossingPeds);
+    }
 
     // Throttle stats update
     this.statsTimer = (this.statsTimer || 0) + dt;

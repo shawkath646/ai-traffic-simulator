@@ -1,5 +1,5 @@
 import React, { useRef, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Clone } from '@react-three/drei';
 import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
@@ -186,6 +186,34 @@ function PedestriansLayer() {
 const MemoizedSkyDome = React.memo(SunnySkyDome);
 const MemoizedClouds = React.memo(RealisticClouds);
 
+function PerformanceMonitor() {
+  const { gl } = useThree();
+  const frameCount = useRef(0);
+  const lastTime = useRef(null);
+  const setPerfStats = useSimulationStore((s) => s.setPerfStats);
+
+  useFrame(() => {
+    const now = performance.now();
+    if (lastTime.current === null) {
+      lastTime.current = now;
+      return;
+    }
+    frameCount.current++;
+    if (now - lastTime.current >= 500) {
+      const fps = Math.round((frameCount.current * 1000) / (now - lastTime.current));
+      const drawCalls = gl.info.render.calls;
+      const triangles = gl.info.render.triangles;
+      frameCount.current = 0;
+      lastTime.current = now;
+      if (setPerfStats) {
+        setPerfStats({ fps, drawCalls, triangles });
+      }
+    }
+  });
+
+  return null;
+}
+
 export default function Scene() {
   const storeRef = useRef(useSimulationStore);
   const lastModeRef = useRef(null);
@@ -251,6 +279,37 @@ export default function Scene() {
   // Natural organic grass texture for city ground (1 tile ≈ 23.6m, seamless)
   const groundGrassTex = useMemo(() => getCachedTileTexture('natural_turf', 22, 22), []);
 
+  // 520x520 ground geometry with opening for the Central Park sunken pond basin (X: -88 to -48, Z: 35 to 75)
+  const groundGeometry = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-260, -260);
+    shape.lineTo(260, -260);
+    shape.lineTo(260, 260);
+    shape.lineTo(-260, 260);
+    shape.closePath();
+
+    // Central Park pond basin cutout (local X: -88 to -48, local Y: -75 to -35 maps to world X: -88 to -48, Z: 35 to 75)
+    const hole = new THREE.Path();
+    hole.moveTo(-88, -75);
+    hole.lineTo(-48, -75);
+    hole.lineTo(-48, -35);
+    hole.lineTo(-88, -35);
+    hole.closePath();
+    shape.holes.push(hole);
+
+    const geo = new THREE.ShapeGeometry(shape);
+    const pos = geo.attributes.position;
+    const uvs = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      uvs[i * 2] = ((x + 260) / 520) * 22;
+      uvs[i * 2 + 1] = ((y + 260) / 520) * 22;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    return geo;
+  }, []);
+
   return (
     <>
       {/* Rich Sunny Blue Sky Dome with warm golden horizon */}
@@ -263,6 +322,9 @@ export default function Scene() {
           skyline and sky dome blend instead of meeting at a hard seam */}
       <fog attach="fog" args={['#bae6fd', 120, 480]} />
 
+      {/* Real-time Render Performance Tracker (FPS, draw calls, triangles) */}
+      <PerformanceMonitor />
+
       {/* Lighting - Natural crisp daylight with subtle warm sunlight */}
       <ambientLight intensity={0.55} color="#f8fafc" />
       <directionalLight
@@ -272,12 +334,12 @@ export default function Scene() {
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
-        shadow-camera-left={-140}
-        shadow-camera-right={140}
-        shadow-camera-top={140}
-        shadow-camera-bottom={-140}
+        shadow-camera-left={-95}
+        shadow-camera-right={95}
+        shadow-camera-top={95}
+        shadow-camera-bottom={-95}
         shadow-camera-near={0.5}
-        shadow-camera-far={480}
+        shadow-camera-far={320}
         shadow-bias={-0.00005}
         shadow-normalBias={0.02}
         shadow-radius={4}
@@ -288,9 +350,8 @@ export default function Scene() {
         intensity={0.50}
       />
 
-      {/* Expanded 520x520 City Chunk Ground with Natural Earthy Grass Turf */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-        <planeGeometry args={[520, 520]} />
+      {/* Expanded 520x520 City Chunk Ground with Natural Earthy Grass Turf (cutout for sunken pond) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} geometry={groundGeometry} receiveShadow>
         <meshStandardMaterial map={groundGrassTex} roughness={0.95} metalness={0.0} color="#ffffff" />
       </mesh>
 
@@ -334,8 +395,8 @@ export default function Scene() {
           flat under ambient light; Bloom makes the sun glow and any emissive
           materials (headlights, traffic lights) actually read as bright.
           Requires @react-three/postprocessing. */}
-      <EffectComposer>
-        <SSAO radius={0.15} intensity={20} luminanceInfluence={0.4} />
+      <EffectComposer multisampling={0}>
+        <SSAO radius={0.15} intensity={20} luminanceInfluence={0.4} samples={16} />
         <Bloom intensity={0.4} luminanceThreshold={0.85} luminanceSmoothing={0.2} />
       </EffectComposer>
     </>

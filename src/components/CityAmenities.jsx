@@ -368,7 +368,27 @@ export function CinemaPlaza({ position = [52, 0, -40] }) {
  * Southwest District: Cultural & Heritage Central Park
  */
 export function CentralPark({ position = [-50, 0, 50] }) {
-  const { scene: pondScene } = useGLTF('/models/pond.glb');
+  const { scene: rawPondScene } = useGLTF('/models/pond.glb');
+  const pondScene = useMemo(() => {
+    const cloned = rawPondScene.clone(true);
+    cloned.traverse((child) => {
+      if (child.isMesh && child.material) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        const matName = child.material.name || '';
+        if (matName === '039BE5' || matName === '00BCD4') {
+          child.material = new THREE.MeshStandardMaterial({
+            color: matName === '039BE5' ? new THREE.Color('#0284c7') : new THREE.Color('#38bdf8'),
+            roughness: 0.12,
+            metalness: 0.15,
+            transparent: true,
+            opacity: 0.90,
+          });
+        }
+      }
+    });
+    return cloned;
+  }, [rawPondScene]);
 
   return (
     <group position={position}>
@@ -378,9 +398,9 @@ export function CentralPark({ position = [-50, 0, 50] }) {
         <meshStandardMaterial color="#2d6a4f" roughness={0.9} />
       </mesh>
 
-      {/* Scenic Park Pond with Water & Shoreline */}
-      <group position={[-10, 0.03, 10]} rotation={[0, 0.4, 0]}>
-        <Clone object={pondScene} scale={[0.15, 0.15, 0.15]} receiveShadow castShadow />
+      {/* Scenic Park Pond with Water & Shoreline (sunken flush with turf) */}
+      <group position={[-10, -2.25, 10]} rotation={[0, 0, 0]}>
+        <primitive object={pondScene} scale={[0.18, 0.18, 0.18]} />
       </group>
 
       {/* Historic Gothic Cathedral / Church overlooking the park */}

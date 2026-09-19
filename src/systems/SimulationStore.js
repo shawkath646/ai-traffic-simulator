@@ -130,6 +130,10 @@ const useSimulationStore = create((set) => ({
   // Anti-Gridlock Collision Prevention (Fully Autonomous AI)
   antiGridlockActive: false,
   setAntiGridlockActive: (active) => set({ antiGridlockActive: active }),
+
+  // Real-time rendering performance metrics (FPS, draw calls, triangles)
+  perfStats: { fps: 60, drawCalls: 0, triangles: 0 },
+  setPerfStats: (perfStats) => set({ perfStats }),
 }));
 
 export default useSimulationStore;

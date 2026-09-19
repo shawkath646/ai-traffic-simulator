@@ -20,11 +20,12 @@ const panelStyle = {
 };
 
 const headerStyle = {
-  fontSize: 16,
+  fontSize: 15,
   fontWeight: 700,
   marginBottom: 14,
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'space-between',
   gap: 8,
   color: '#ffffff',
 };
@@ -124,14 +125,48 @@ export default function ControlPanel() {
   const setSelectedVehicleId = useSimulationStore((s) => s.setSelectedVehicleId);
   const vehicles = useSimulationStore((s) => s.vehicles);
   const antiGridlockActive = useSimulationStore((s) => s.antiGridlockActive);
+  const perfStats = useSimulationStore((s) => s.perfStats) || { fps: 60, drawCalls: 0, triangles: 0 };
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
 
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
-        <span style={{ fontSize: 20 }}>🚦</span>
-        AI Smart Intersection (3-Lane)
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 18 }}>🚦</span>
+          <span>AI Smart City</span>
+        </div>
+        <div
+          title={`Draw calls: ${perfStats.drawCalls} | Triangles: ${perfStats.triangles?.toLocaleString()}`}
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            padding: '2px 7px',
+            borderRadius: 5,
+            background:
+              perfStats.fps >= 50
+                ? 'rgba(34, 197, 94, 0.15)'
+                : perfStats.fps >= 30
+                ? 'rgba(234, 179, 8, 0.15)'
+                : 'rgba(239, 68, 68, 0.15)',
+            color:
+              perfStats.fps >= 50
+                ? '#4ade80'
+                : perfStats.fps >= 30
+                ? '#facc15'
+                : '#f87171',
+            border: `1px solid ${
+              perfStats.fps >= 50
+                ? 'rgba(34, 197, 94, 0.3)'
+                : perfStats.fps >= 30
+                ? 'rgba(234, 179, 8, 0.3)'
+                : 'rgba(239, 68, 68, 0.3)'
+            }`,
+            letterSpacing: '0.2px',
+          }}
+        >
+          {perfStats.fps} FPS · {perfStats.drawCalls} calls
+        </div>
       </div>
 
       {/* Mode toggle */}

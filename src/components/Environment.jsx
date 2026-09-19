@@ -216,14 +216,14 @@ export function PlanterBox({ position, rotation = 0 }) {
 export function SidewalkTreeGrate({ position }) {
   return (
     <group position={position}>
-      {/* Dark cast iron square frame */}
-      <mesh position={[0, 0.16, 0]}>
-        <boxGeometry args={[1.6, 0.02, 1.6]} />
+      {/* Dark cast iron square frame sitting flush on top of sidewalk (Y = 0.30) */}
+      <mesh position={[0, 0.305, 0]}>
+        <boxGeometry args={[1.6, 0.015, 1.6]} />
         <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.4} />
       </mesh>
       {/* Soil inner opening */}
-      <mesh position={[0, 0.165, 0]}>
-        <boxGeometry args={[0.7, 0.02, 0.7]} />
+      <mesh position={[0, 0.308, 0]}>
+        <boxGeometry args={[0.7, 0.016, 0.7]} />
         <meshStandardMaterial color="#271b12" roughness={0.9} />
       </mesh>
     </group>
@@ -243,27 +243,27 @@ function Environment() {
         <React.Fragment key={`sw-trees-${dist}`}>
           {/* North Avenue (-Z) Sidewalks */}
           <SidewalkTreeGrate position={[sw, 0, -dist]} />
-          <Tree position={[sw, 0.16, -dist]} variant={(dist % 5) + 1} scale={0.95} />
+          <Tree position={[sw, 0.30, -dist]} variant={(dist % 5) + 1} scale={0.95} />
           <SidewalkTreeGrate position={[-sw, 0, -dist]} />
-          <Tree position={[-sw, 0.16, -dist]} variant={((dist + 2) % 5) + 1} scale={0.95} />
+          <Tree position={[-sw, 0.30, -dist]} variant={((dist + 2) % 5) + 1} scale={0.95} />
 
           {/* South Avenue (+Z) Sidewalks */}
           <SidewalkTreeGrate position={[sw, 0, dist]} />
-          <Tree position={[sw, 0.16, dist]} variant={((dist + 1) % 5) + 1} scale={0.95} />
+          <Tree position={[sw, 0.30, dist]} variant={((dist + 1) % 5) + 1} scale={0.95} />
           <SidewalkTreeGrate position={[-sw, 0, dist]} />
-          <Tree position={[-sw, 0.16, dist]} variant={((dist + 3) % 5) + 1} scale={0.95} />
+          <Tree position={[-sw, 0.30, dist]} variant={((dist + 3) % 5) + 1} scale={0.95} />
 
           {/* East Avenue (+X) Sidewalks */}
           <SidewalkTreeGrate position={[dist, 0, sw]} />
-          <Tree position={[dist, 0.16, sw]} variant={(dist % 5) + 1} scale={0.95} />
+          <Tree position={[dist, 0.30, sw]} variant={(dist % 5) + 1} scale={0.95} />
           <SidewalkTreeGrate position={[dist, 0, -sw]} />
-          <Tree position={[dist, 0.16, -sw]} variant={((dist + 2) % 5) + 1} scale={0.95} />
+          <Tree position={[dist, 0.30, -sw]} variant={((dist + 2) % 5) + 1} scale={0.95} />
 
           {/* West Avenue (-X) Sidewalks */}
           <SidewalkTreeGrate position={[-dist, 0, sw]} />
-          <Tree position={[-dist, 0.16, sw]} variant={((dist + 1) % 5) + 1} scale={0.95} />
+          <Tree position={[-dist, 0.30, sw]} variant={((dist + 1) % 5) + 1} scale={0.95} />
           <SidewalkTreeGrate position={[-dist, 0, -sw]} />
-          <Tree position={[-dist, 0.16, -sw]} variant={((dist + 3) % 5) + 1} scale={0.95} />
+          <Tree position={[-dist, 0.30, -sw]} variant={((dist + 3) % 5) + 1} scale={0.95} />
         </React.Fragment>
       ))}
 
